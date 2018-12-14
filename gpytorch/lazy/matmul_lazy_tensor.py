@@ -83,6 +83,6 @@ class MatmulLazyTensor(LazyTensor):
         else:
             return super(MatmulLazyTensor, self).diag()
 
-    @cached
+    # @cached
     def evaluate(self):
         return torch.matmul(self.left_lazy_tensor.evaluate(), self.right_lazy_tensor.evaluate())

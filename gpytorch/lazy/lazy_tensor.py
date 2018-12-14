@@ -593,7 +593,7 @@ class LazyTensor(object):
         )
         return self.repeat(*repeat_shape)
 
-    @cached
+    # @cached
     def evaluate(self):
         """
         Explicitly evaluates the matrix this LazyTensor represents. This function

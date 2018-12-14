@@ -77,7 +77,7 @@ class RootLazyTensor(LazyTensor):
         else:
             return super(RootLazyTensor, self).diag()
 
-    @cached
+    # @cached
     def evaluate(self):
         eval_root = self.root.evaluate()
         return torch.matmul(eval_root, eval_root.transpose(-1, -2))

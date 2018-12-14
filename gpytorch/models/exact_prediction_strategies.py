@@ -71,7 +71,7 @@ class DefaultPredictionStrategy(object):
         return test_train_covar.matmul(precomputed_cache)
 
     @property
-    @cached(name="mean_cache")
+    # @cached(name="mean_cache")
     def mean_cache(self):
         train_mean = self.train_mean
         train_labels = self.train_labels
@@ -104,7 +104,7 @@ class DefaultPredictionStrategy(object):
         return mean_cache.detach()
 
     @property
-    @cached(name="covar_cache")
+    # @cached(name="covar_cache")
     def covar_cache(self):
         train_train_covar = self.likelihood(
             MultivariateNormal(torch.zeros(1), self.train_train_covar), self.train_inputs
