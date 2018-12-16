@@ -13,8 +13,8 @@ class CachedCGLazyTensor(LazyTensor):
         :attr:`base_lazy_tensor` (:class:`gpytorch.lazy.LazyTensor`): the LazyTensor to wrap
     """
 
-    def __init__(self, base_lazy_tensor, *eager_rhs):
-        super(CachedCGLazyTensor, self).__init__(base_lazy_tensor, *eager_rhs)
+    def __init__(self, base_lazy_tensor, eager_rhs):
+        super(CachedCGLazyTensor, self).__init__(base_lazy_tensor, eager_rhs=eager_rhs)
         self.base_lazy_tensor = base_lazy_tensor
         self.eager_rhs = eager_rhs
 
@@ -29,6 +29,10 @@ class CachedCGLazyTensor(LazyTensor):
 
     def _quad_form_derivative(self, left_vecs, right_vecs):
         return self.base_lazy_tensor._quad_form_derivative(left_vecs, right_vecs)
+
+    def _solve(self, rhs, preconditioner):
+        print(rhs, self.eager_rhs)
+        return super(CachedCGLazyTensor, self)._solve(rhs, preconditioner)
 
     def _size(self):
         return self.base_lazy_tensor._size()

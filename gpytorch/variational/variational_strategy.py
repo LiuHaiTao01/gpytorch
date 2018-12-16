@@ -3,7 +3,7 @@
 import math
 import torch
 from .. import beta_features
-from ..lazy import RootLazyTensor, PsdSumLazyTensor, DiagLazyTensor
+from ..lazy import DiagLazyTensor, CachedCGLazyTensor, NonLazyTensor, PsdSumLazyTensor, RootLazyTensor
 from ..module import Module
 from ..distributions import MultivariateNormal
 
@@ -89,10 +89,16 @@ class VariationalStrategy(Module):
 
             test_mean = full_mean[..., n_induc:]
             induc_mean = full_mean[..., :n_induc]
-            induc_induc_covar = full_covar[..., :n_induc, :n_induc].add_jitter()
-            induc_data_covar = full_covar[..., :n_induc, n_induc:]
-            data_data_covar = full_covar[..., n_induc:, n_induc:]
             var_dist_mean = variational_dist.mean
+            mean_diff = (var_dist_mean - induc_mean).unsqueeze(-1)
+
+            induc_data_covar = full_covar[..., :n_induc, n_induc:].evaluate()
+            data_data_covar = full_covar[..., n_induc:, n_induc:]
+            root_variational_covar = variational_dist.lazy_covariance_matrix.root_decomposition().root.evaluate()
+            induc_induc_covar = CachedCGLazyTensor(
+                full_covar[..., :n_induc, :n_induc].add_jitter(),
+                eager_rhs=torch.cat([induc_data_covar, mean_diff, root_variational_covar], -1)
+            )
 
             # Cache the prior distribution, for faster training
             if self.training:
@@ -100,16 +106,17 @@ class VariationalStrategy(Module):
                 self._prior_distribution_memo = prior_dist
 
             # Compute predictive mean/covariance
-            induc_data_covar = induc_data_covar.evaluate()
-            inv_product = induc_induc_covar.inv_matmul(induc_data_covar)
-            factor = variational_dist.lazy_covariance_matrix.root_decomposition().root.matmul(inv_product)
+            factor = induc_induc_covar.inv_matmul(induc_data_covar, left_tensor=root_variational_covar)
             predictive_mean = torch.add(
-                test_mean, inv_product.transpose(-1, -2).matmul((var_dist_mean - induc_mean).unsqueeze(-1)).squeeze(-1)
+                test_mean,
+                induc_induc_covar.inv_matmul(mean_diff, left_tensor=induc_data_covar.transpose(-1, -2)).squeeze(-1)
             )
             predictive_covar = RootLazyTensor(factor.transpose(-2, -1))
 
             if beta_features.diagonal_correction.on():
-                fake_diagonal = (inv_product * induc_data_covar).sum(-2)
+                fake_diagonal = NonLazyTensor(
+                    induc_induc_covar.inv_matmul(induc_data_covar, induc_data_covar.transpose(-1, -2))
+                ).diag()
                 real_diagonal = data_data_covar.diag()
                 diag_correction = DiagLazyTensor((real_diagonal - fake_diagonal).clamp(0, math.inf))
                 predictive_covar = PsdSumLazyTensor(predictive_covar, diag_correction)
